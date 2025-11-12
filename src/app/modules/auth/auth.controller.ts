@@ -13,6 +13,7 @@ const login_user = catchAsync(async (req, res) => {
         secure: configs.env == 'production',
         httpOnly: true,
     });
+    
     manageResponse(res, {
         statusCode: httpStatus.OK,
         success: true,
