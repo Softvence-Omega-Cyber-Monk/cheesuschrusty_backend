@@ -1,6 +1,5 @@
 import { AppError } from "../../utils/app_error";
-import { TAccount, TLoginPayload, TRegisterPayload } from "./auth.interface";
-import { Account_Model } from "./auth.model";
+import { TLoginPayload } from "./auth.interface";
 import httpStatus from "http-status";
 import bcrypt from "bcrypt";
 import { TUser } from "../user/user.interface";
@@ -10,88 +9,16 @@ import { jwtHelpers } from "../../utils/JWT";
 import { configs } from "../../configs";
 import { JwtPayload, Secret } from "jsonwebtoken";
 import sendMail from "../../utils/mail_sender";
-import { isAccountExist } from "../../utils/isAccountExist";
-// register user
-const register_user_into_db = async (payload: TRegisterPayload) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-  try {
-    // Check if the account already exists
-    const isExistAccount = await Account_Model.findOne(
-      { email: payload?.email },
-      null,
-      { session }
-    );
-    if (isExistAccount) {
-      throw new AppError("Account already exist!!", httpStatus.BAD_REQUEST);
-    }
-
-    // Hash the password
-    const hashPassword = bcrypt.hashSync(payload?.password, 10);
-
-    // Create account
-    const accountPayload: TAccount = {
-      email: payload.email,
-      password: hashPassword,
-      lastPasswordChange: new Date(),
-    };
-    const newAccount = await Account_Model.create([accountPayload], {
-      session,
-    });
-
-    // Create user
-    const userPayload: TUser = {
-      name: payload.name,
-      accountId: newAccount[0]._id,
-    };
-    await User_Model.create([userPayload], { session });
-    // make verified link
-    const verifiedToken = jwtHelpers.generateToken(
-      {
-        email: payload?.email,
-      },
-      configs.jwt.verified_token as Secret,
-      "5m"
-    );
-    const verificationLink = `${configs.jwt.front_end_url}/verified?token=${verifiedToken}`;
-    // Commit the transaction
-    await session.commitTransaction();
-    await sendMail({
-      to: payload?.email,
-      subject: "Thanks for creating account!",
-      textBody: `New Account successfully created on ${new Date().toLocaleDateString()}`,
-      name: payload?.name,
-      htmlBody: `
-            <p>Thanks for creating an account with us. We’re excited to have you on board! Click the button below to
-                verify your email and activate your account:</p>
-
-
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="${verificationLink}" target="_blank"
-                    style="background-color: #4CAF50; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 5px; display: inline-block; font-size: 18px;"
-                    class="btn">
-                    Verify My Email
-                </a>
-            </div>
-
-            <p>If you did not create this account, please ignore this email.</p>
-            `,
-    });
-    return newAccount;
-  } catch (error) {
-    console.log(error);
-    // Rollback the transaction
-    await session.abortTransaction();
-    throw error;
-  } finally {
-    session.endSession();
-  }
-};
 
 // login user
 const login_user_from_db = async (payload: TLoginPayload) => {
+  // console.log("payload:", payload);
   // check account info
-  const isExistAccount = await isAccountExist(payload?.email);
+  const isExistAccount = await User_Model.findOne({ email: payload.email });
+  console.log("isExistAccount:", isExistAccount);
+  if (!isExistAccount) {
+    throw new AppError("Account not found", httpStatus.NOT_FOUND);
+  }
 
   const isPasswordMatch = await bcrypt.compare(
     payload.password,
@@ -100,12 +27,14 @@ const login_user_from_db = async (payload: TLoginPayload) => {
   if (!isPasswordMatch) {
     throw new AppError("Invalid password", httpStatus.UNAUTHORIZED);
   }
+
   const accessToken = jwtHelpers.generateToken(
     {
       email: isExistAccount.email,
       role: isExistAccount.role,
+      userId: isExistAccount._id,
     },
-    configs.jwt.access_token as Secret,
+    configs.jwt.access_token_secret as Secret,
     configs.jwt.access_expires as string
   );
 
@@ -113,26 +42,16 @@ const login_user_from_db = async (payload: TLoginPayload) => {
     {
       email: isExistAccount.email,
       role: isExistAccount.role,
+      userId: isExistAccount._id,
     },
-    configs.jwt.refresh_token as Secret,
+    configs.jwt.refresh_token_secret as Secret,
     configs.jwt.refresh_expires as string
   );
   return {
     accessToken: accessToken,
     refreshToken: refreshToken,
     role: isExistAccount.role,
-  };
-};
-
-const get_my_profile_from_db = async (email: string) => {
-  const isExistAccount = await isAccountExist(email);
-  const accountProfile = await User_Model.findOne({
-    accountId: isExistAccount._id,
-  });
-  isExistAccount.password = "";
-  return {
-    account: isExistAccount,
-    profile: accountProfile,
+    userId: isExistAccount._id,
   };
 };
 
@@ -141,28 +60,29 @@ const refresh_token_from_db = async (token: string) => {
   try {
     decodedData = jwtHelpers.verifyToken(
       token,
-      configs.jwt.refresh_token as Secret
+      configs.jwt.refresh_token_secret as Secret
     );
   } catch (err) {
     throw new Error("You are not authorized!");
   }
 
-  const userData = await Account_Model.findOne({
-    email: decodedData.email,
-    status: "ACTIVE",
-    isDeleted: false,
+  // console.log("decodedData:", decodedData);
+
+  const userData = await User_Model.findOne({
+    email: decodedData?.email,
   });
 
   const accessToken = jwtHelpers.generateToken(
     {
       email: userData!.email,
       role: userData!.role,
+      userId: userData!._id,
     },
-    configs.jwt.access_token as Secret,
+    configs.jwt.access_token_secret as Secret,
     configs.jwt.access_expires as string
   );
 
-  return accessToken;
+  return { accessToken };
 };
 
 const change_password_from_db = async (
@@ -172,7 +92,11 @@ const change_password_from_db = async (
     newPassword: string;
   }
 ) => {
-  const isExistAccount = await isAccountExist(user?.email);
+  const isExistAccount = await User_Model.findOne({ email: user.email });
+  console.log("isExistAccount:", isExistAccount);
+  if (!isExistAccount) {
+    throw new AppError("Account not found", httpStatus.NOT_FOUND);
+  }
 
   const isCorrectPassword: boolean = await bcrypt.compare(
     payload.oldPassword,
@@ -184,7 +108,7 @@ const change_password_from_db = async (
   }
 
   const hashedPassword: string = await bcrypt.hash(payload.newPassword, 10);
-  await Account_Model.findOneAndUpdate(
+  await User_Model.findOneAndUpdate(
     { email: isExistAccount.email },
     {
       password: hashedPassword,
@@ -195,7 +119,10 @@ const change_password_from_db = async (
 };
 
 const forget_password_from_db = async (email: string) => {
-  const isAccountExists = await isAccountExist(email);
+  const isAccountExists = await User_Model.findOne({ email: email });
+  if (!isAccountExists) {
+    throw new AppError("Account not found", httpStatus.NOT_FOUND);
+  }
   const resetToken = jwtHelpers.generateToken(
     {
       email: isAccountExists.email,
@@ -218,108 +145,9 @@ const forget_password_from_db = async (email: string) => {
   return "Check your email for reset link";
 };
 
-const reset_password_into_db = async (
-  token: string,
-  email: string,
-  newPassword: string
-) => {
-  let decodedData: JwtPayload;
-  try {
-    decodedData = jwtHelpers.verifyToken(
-      token,
-      configs.jwt.reset_secret as Secret
-    );
-  } catch (err) {
-    throw new AppError(
-      "Your reset link is expire. Submit new link request!!",
-      httpStatus.UNAUTHORIZED
-    );
-  }
-
-  const isAccountExists = await isAccountExist(email);
-
-  const hashedPassword: string = await bcrypt.hash(newPassword, 10);
-
-  await Account_Model.findOneAndUpdate(
-    { email: isAccountExists.email },
-    {
-      password: hashedPassword,
-      lastPasswordChange: Date(),
-    }
-  );
-  return "Password reset successfully!";
-};
-
-const verified_account_into_db = async (token: string) => {
-  try {
-    const { email } = jwtHelpers.verifyToken(
-      token,
-      configs.jwt.verified_token as string
-    );
-    // check account is already verified or blocked
-    const isExistAccount = await Account_Model.findOne({ email });
-    // check account
-    if (!isExistAccount) {
-      throw new AppError("Account not found!!", httpStatus.NOT_FOUND);
-    }
-    if (isExistAccount.isDeleted) {
-      throw new AppError("Account deleted !!", httpStatus.BAD_REQUEST);
-    }
-    const result = await Account_Model.findOneAndUpdate(
-      { email },
-      { isVerified: true },
-      { new: true }
-    );
-
-    return result;
-  } catch (error) {
-    throw new AppError("Invalid or Expired token!!!", httpStatus.BAD_REQUEST);
-  }
-};
-
-const get_new_verification_link_from_db = async (email: string) => {
-  const isExistAccount = await isAccountExist(email);
-
-  const verifiedToken = jwtHelpers.generateToken(
-    {
-      email,
-    },
-    configs.jwt.verified_token as Secret,
-    "5m"
-  );
-  const verificationLink = `${configs.jwt.front_end_url}/verified?token=${verifiedToken}`;
-  await sendMail({
-    to: email,
-    subject: "New Verification link",
-    textBody: `New Account verification link is successfully created on ${new Date().toLocaleDateString()}`,
-    htmlBody: `
-            <p>Thanks for creating an account with us. We’re excited to have you on board! Click the button below to
-                verify your email and activate your account:</p>
-
-
-            <div style="text-align: center; margin: 30px 0;">
-                <a href="${verificationLink}" target="_blank"
-                    style="background-color: #4CAF50; color: #ffffff; padding: 14px 28px; text-decoration: none; font-weight: bold; border-radius: 5px; display: inline-block; font-size: 18px;"
-                    class="btn">
-                    Verify My Email
-                </a>
-            </div>
-
-            <p>If you did not create this account, please ignore this email.</p>
-            `,
-  });
-
-  return null;
-};
-
 export const auth_services = {
-  register_user_into_db,
   login_user_from_db,
-  get_my_profile_from_db,
   refresh_token_from_db,
   change_password_from_db,
   forget_password_from_db,
-  reset_password_into_db,
-  verified_account_into_db,
-  get_new_verification_link_from_db,
 };

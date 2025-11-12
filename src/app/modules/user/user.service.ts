@@ -1,6 +1,6 @@
 import { TUser } from "./user.interface";
 import { User_Model } from "./user.model";
-
+import bcrypt from "bcrypt";
 
 export const UserService = {
   // Create a new user
@@ -9,7 +9,16 @@ export const UserService = {
     if (existingUser) {
       throw new Error("User already exists with this email.");
     }
-    const user = new User_Model(payload);
+
+    // Hash the password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(payload.password, salt);
+
+    const user = new User_Model({
+      ...payload,
+      password: hashedPassword, // save hashed password
+    });
+
     return await user.save();
   },
 
