@@ -1,18 +1,15 @@
 import { z } from "zod";
 
-const update_user = z.object({
-    name: z.string().optional(),
-    photo: z.string().optional(),
-    address: z.object({
-        location: z.string().optional(),
-        city: z.string().optional(),
-        state: z.string().optional(),
-        postCode: z.string().optional(),
-        country: z.string().optional(),
-        timeZone: z.string().optional(),
-    }).optional()
-})
+const create_user = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters long"),
+  email: z.string().email("Invalid email address"),
+  password: z.string().min(6, "Password must be at least 6 characters long"),
+  role: z
+    .enum(["user", "superAdmin", "contentManager", "supportManager"])
+    .optional(),
+  userType: z.enum(["regular", "pro"]).optional(),
+});
 
 export const user_validations = {
-    update_user
-}
+  create_user,
+};

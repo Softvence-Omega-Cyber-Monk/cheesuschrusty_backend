@@ -1,22 +1,29 @@
-import { Request } from "express"
-import uploadCloud from "../../utils/cloudinary";
-import { User_Model } from "./user.schema";
-import { Account_Model } from "../auth/auth.schema";
-
-const update_profile_into_db = async (req: Request) => {
-    // upload file and get link
-    if (req.file) {
-        const uploadedImage = await uploadCloud(req.file);
-        req.body.photo = uploadedImage?.secure_url;
-    };
-
-    const isExistUser = await Account_Model.findOne({ email: req?.user?.email }).lean()
-    const result = await User_Model.findOneAndUpdate({ accountId: isExistUser!._id }, req?.body)
-    return result
-}
+import { TUser } from "./user.interface";
+import { User_Model } from "./user.model";
 
 
+export const UserService = {
+  // Create a new user
+  async createUser(payload: TUser) {
+    const existingUser = await User_Model.findOne({ email: payload.email });
+    if (existingUser) {
+      throw new Error("User already exists with this email.");
+    }
+    const user = new User_Model(payload);
+    return await user.save();
+  },
 
-export const user_services = {
-    update_profile_into_db
-}
+  // Get all users
+  async getAllUsers() {
+    return await User_Model.find().sort({ createdAt: -1 });
+  },
+
+  // Get single user by ID
+  async getUserById(userId: string) {
+    const user = await User_Model.findById(userId);
+    if (!user) {
+      throw new Error("User not found.");
+    }
+    return user;
+  },
+};
