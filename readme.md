@@ -1,4 +1,4 @@
-# Node + Express + TypeScript + Mongoose + Zod + Swagger CLI Tool
+<!-- # Node + Express + TypeScript + Mongoose + Zod + Swagger CLI Tool
 
 A simple CLI tool to quickly generate a full module scaffold for your Node.js/Express + TypeScript project, including interfaces, schemas, validations, controllers, services, routes, and Swagger docs.
 
@@ -95,4 +95,4 @@ src/app/modules/order/
 
 *MIT © Abumahid Islam*
 
-I hope this CLI tool helps you generate a full module scaffold for your Node.js/Express + TypeScript project. If you have any questions or feedback, please feel free to open an issue on GitHub.
+I hope this CLI tool helps you generate a full module scaffold for your Node.js/Express + TypeScript project. If you have any questions or feedback, please feel free to open an issue on GitHub. -->
