@@ -15,7 +15,7 @@ const login_user_from_db = async (payload: TLoginPayload) => {
   // console.log("payload:", payload);
   // check account info
   const isExistAccount = await User_Model.findOne({ email: payload.email });
-  console.log("isExistAccount:", isExistAccount);
+  // console.log("isExistAccount:", isExistAccount);
   if (!isExistAccount) {
     throw new AppError("Account not found", httpStatus.NOT_FOUND);
   }
