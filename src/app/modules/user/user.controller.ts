@@ -1,12 +1,23 @@
 import { Request, Response } from "express";
 import { UserService } from "./user.service";
-
+import uploadCloud from "../../utils/cloudinary";
 
 export const UserController = {
   // Create user
   async createUser(req: Request, res: Response) {
     try {
-      const result = await UserService.createUser(req.body);
+      const inputData = req.body;
+      // console.log("Request Body:", inputData);
+
+      // Handle profile image if uploaded
+      if (req.file) {
+        const uploadedImage = await uploadCloud(req.file);
+        if (uploadedImage?.secure_url) {
+          inputData.profilePicture = uploadedImage.secure_url;
+        }
+      }
+
+      const result = await UserService.createUser(inputData);
       res.status(201).json({
         success: true,
         message: "User created successfully",

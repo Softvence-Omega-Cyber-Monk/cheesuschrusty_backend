@@ -5,6 +5,7 @@ import bcrypt from "bcrypt";
 export const UserService = {
   // Create a new user
   async createUser(payload: TUser) {
+    // console.log("Creating user with payload: form service", payload);
     const existingUser = await User_Model.findOne({ email: payload.email });
     if (existingUser) {
       throw new Error("User already exists with this email.");

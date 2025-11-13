@@ -20,8 +20,8 @@ export const configs = {
         app_password: process.env.APP_PASSWORD
     },
     cloudinary: {
-        cloud_name: process.env.CLOUD_NAME,
-        cloud_api_key: process.env.CLOUD_API_KEY,
-        cloud_api_secret: process.env.CLOUD_API_SECRET
+        cloud_name: process.env.CLOUDINARY_NAME,
+        cloud_api_key: process.env.CLOUDINARY_API_KEY,
+        cloud_api_secret: process.env.CLOUDINARY_API_SECRET
     }
 }
