@@ -10,6 +10,7 @@ const user_schema = new Schema<TUser>({
     isSuspended: { type: Boolean, default: false },
     profilePicture: { type: String, required: false },
 }, {
+    
     versionKey: false,
     timestamps: true
 })
